@@ -5,6 +5,7 @@ import envSecrets
 import machine
 import json
 from umqtt.simple import MQTTClient
+import os
 
 '''
 References:
@@ -25,7 +26,7 @@ mqtt_discovery_prefix = envSecrets.mqtt_discovery_prefix
 mqtt_user=envSecrets.mqtt_user
 client_id = envHostname.hostname
 #The state tends to be the root of the device
-stateTopic = f"{mqtt_discovery_prefix}/switch/{envSecrets.hostname}"
+stateTopic = f"{mqtt_discovery_prefix}/switch/{envHostname.hostname}"
 #Notice that config is the stateTopic with /config appended to the end
 #Use /config to make it discoverable
 configTopic = f"{stateTopic}/config"
@@ -56,29 +57,31 @@ try:
         "name": None,
         "command_topic": cmd_topic,
         "state_topic": stateTopic,
-        "unique_id": f"{envSecrets.hostname}_onboardLED",
-        "device": {"identifiers": ["onboardLED"], "name": envSecrets.hostname },
+        "unique_id": f"{envHostname.hostname}_onboardLED",
+        "device": {"identifiers": ["onboardLED"], "name": envHostname.hostname,"manufacturer": os.uname().sysname,"model": os.uname().machine, "sn": "{MAC Address}" },
         "state_off": 'OFF',
         "state_on": 'ON'
         
         }
     configMsg = json.dumps(configMsg)
-    client.publish(configTopic, configMsg)
+    #Notice the retain=True setting when publishing the Discovery message
+    client.publish(configTopic, configMsg,retain=True)
     client.subscribe(cmd_topic)
-
-    while True:
+except Exception as e:
+    print('Running exception')
+    client.publish(configTopic, '')
+while True:
+    try:
         client.check_msg()
         if led.value() == 0:
             pubText = 'OFF'
         else:
             pubText = 'ON'
-
         client.publish(stateTopic,pubText)
         
         time.sleep(2)
-except Exception as e:
-    client.publish(configTopic, '')
-finally:
-    client.publish(configTopic, '')
+    except Exception as e:
+        client.publish(configTopic, '')
+
 
 
